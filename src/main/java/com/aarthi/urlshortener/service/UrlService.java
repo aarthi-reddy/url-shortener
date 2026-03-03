@@ -13,6 +13,7 @@ import java.util.Random;
 public class UrlService {
 
     private final UrlRepository urlRepository;
+    private final RedisService redisService;
 
     private static final String CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int SHORT_CODE_LENGTH = 6;
@@ -26,15 +27,35 @@ public class UrlService {
         urlMapping.setCreatedAt(LocalDateTime.now());
         urlMapping.setClickCount(0L);
 
-        return urlRepository.save(urlMapping);
+        UrlMapping saved = urlRepository.save(urlMapping);
+
+        // Cache in Redis immediately after saving
+        redisService.cacheUrl(shortCode, originalUrl);
+
+        return saved;
     }
 
     public Optional<UrlMapping> getOriginalUrl(String shortCode) {
+        // 1. Check Redis cache first
+        String cachedUrl = redisService.getCachedUrl(shortCode);
+        if (cachedUrl != null) {
+            System.out.println("Cache HIT for: " + shortCode);
+            UrlMapping cached = new UrlMapping();
+            cached.setShortCode(shortCode);
+            cached.setOriginalUrl(cachedUrl);
+            return Optional.of(cached);
+        }
+
+        // 2. Cache MISS - go to MySQL
+        System.out.println("Cache MISS for: " + shortCode);
         Optional<UrlMapping> urlMapping = urlRepository.findByShortCode(shortCode);
         urlMapping.ifPresent(mapping -> {
             mapping.setClickCount(mapping.getClickCount() + 1);
             urlRepository.save(mapping);
+            // Store in Redis for next time
+            redisService.cacheUrl(shortCode, mapping.getOriginalUrl());
         });
+
         return urlMapping;
     }
 
