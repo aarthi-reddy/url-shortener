@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+          font-family: 'Segoe UI', sans-serif;
+          min-height: 100vh;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .card {
+          background: white;
+          border-radius: 20px;
+          padding: 48px;
+          width: 100%;
+          max-width: 560px;
+          box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+        }
+
+        h1 {
+          font-size: 28px;
+          color: #1a1a2e;
+          margin-bottom: 8px;
+          font-weight: 700;
+        }
+
+        .subtitle {
+          color: #888;
+          font-size: 14px;
+          margin-bottom: 32px;
+        }
+
+        label {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: #444;
+          margin-bottom: 8px;
+        }
+
+        input {
+          width: 100%;
+          padding: 14px 18px;
+          border: 2px solid #e8e8e8;
+          border-radius: 10px;
+          font-size: 15px;
+          outline: none;
+          transition: border 0.2s;
+          margin-bottom: 16px;
+        }
+
+        input:focus { border-color: #0f3460; }
+
+        button {
+          width: 100%;
+          padding: 14px;
+          background: linear-gradient(135deg, #0f3460, #1a1a2e);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .result {
+          margin-top: 28px;
+          padding: 20px;
+          background: #f0f7ff;
+          border-radius: 12px;
+          border: 1px solid #d0e8ff;
+          display: none;
+        }
+
+        .result-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #888;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 10px;
+        }
+
+        .result-url {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .short-url {
+          flex: 1;
+          font-size: 16px;
+          font-weight: 600;
+          color: #0f3460;
+          word-break: break-all;
+          text-decoration: none;
+        }
+
+        .short-url:hover { text-decoration: underline; }
+
+        .copy-btn {
+          width: auto;
+          padding: 8px 16px;
+          font-size: 13px;
+          background: #0f3460;
+          border-radius: 6px;
+          white-space: nowrap;
+        }
+
+        .error {
+          margin-top: 16px;
+          padding: 14px;
+          background: #fff0f0;
+          border: 1px solid #ffcccc;
+          border-radius: 10px;
+          color: #cc0000;
+          font-size: 14px;
+          display: none;
+        }
+
+        .copied {
+          color: #00aa55;
+          font-size: 13px;
+          margin-top: 8px;
+          display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>🔗 URL Shortener</h1>
+    <p class="subtitle">Paste a long URL and get a short one instantly</p>
+
+    <label for="urlInput">Your long URL</label>
+    <input
+            type="url"
+            id="urlInput"
+            placeholder="https://www.example.com/very/long/url..."
+    />
+
+    <button id="shortenBtn" onclick="shortenUrl()">
+        Shorten URL
+    </button>
+
+    <div class="error" id="errorBox"></div>
+
+    <div class="result" id="resultBox">
+        <div class="result-label">Your short URL</div>
+        <div class="result-url">
+            <a class="short-url" id="shortUrlLink" href="#" target="_blank"></a>
+            <button class="copy-btn" onclick="copyUrl()">Copy</button>
+        </div>
+        <div class="copied" id="copiedMsg">✓ Copied to clipboard!</div>
+    </div>
+</div>
+
+<script>
+    async function shortenUrl() {
+      const input = document.getElementById('urlInput');
+      const btn = document.getElementById('shortenBtn');
+      const errorBox = document.getElementById('errorBox');
+      const resultBox = document.getElementById('resultBox');
+      const url = input.value.trim();
+
+      // Reset
+      errorBox.style.display = 'none';
+      resultBox.style.display = 'none';
+
+      if (!url) {
+        showError('Please enter a URL');
+        return;
+      }
+
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        showError('URL must start with http:// or https://');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Shortening...';
+
+      try {
+        const response = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: url
+        });
+
+        if (!response.ok) throw new Error('Failed to shorten URL');
+
+        const data = await response.json();
+        const shortUrl = `${window.location.origin}/api/${data.shortCode}`;
+
+        document.getElementById('shortUrlLink').textContent = shortUrl;
+        document.getElementById('shortUrlLink').href = shortUrl;
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        showError('Something went wrong. Make sure your app is running!');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Shorten URL';
+      }
+    }
+
+    function showError(msg) {
+      const errorBox = document.getElementById('errorBox');
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+
+    function copyUrl() {
+      const url = document.getElementById('shortUrlLink').textContent;
+      navigator.clipboard.writeText(url);
+      document.getElementById('copiedMsg').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('copiedMsg').style.display = 'none';
+      }, 2000);
+    }
+
+    // Allow pressing Enter to submit
+    document.getElementById('urlInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') shortenUrl();
+    });
+</script>
+</body>
+</html>
